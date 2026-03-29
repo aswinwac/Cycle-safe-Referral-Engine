@@ -1,0 +1,5 @@
+- My role as autonomous senior developer
+- Build order from global→user→fraud→referral→reward→dashboard
+- Rules: no questions, update PROGRESS.md after each module
+- Definition of done per module
+- Tech stack: FastAPI + PostgreSQL + Neo4j + Redis + React

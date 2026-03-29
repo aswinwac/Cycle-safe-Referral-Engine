@@ -1,0 +1,47 @@
+# ── Python virtualenv ─────────────────────────────────────────
+env/
+venv/
+.venv/
+ENV/
+
+# ── Python cache / build ──────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+
+# ── Alembic (keep versions, ignore compiled cache) ────────────
+# migrations/versions/__pycache__/ is covered by __pycache__ above
+
+# ── Environment / secrets ─────────────────────────────────────
+.env
+.env.*
+!.env.example
+backend/.env
+
+# ── Node / Frontend ───────────────────────────────────────────
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+node_modules/
+
+# ── Docker ────────────────────────────────────────────────────
+# (keep docker-compose.yml but ignore override files)
+docker-compose.override.yml
+
+# ── OS ────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*.swo

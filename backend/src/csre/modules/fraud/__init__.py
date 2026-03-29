@@ -1,0 +1,2 @@
+"""Fraud module scaffold."""
+
