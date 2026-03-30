@@ -40,7 +40,8 @@ export function GraphView() {
                  nodes: res.data.nodes.map((n: any) => ({
                     id: n.id,
                     name: n.username,
-                    group: n.depth_from_root === 0 ? 1 : (n.depth_from_root === 1 ? 2 : 3),
+                    group: n.depth === 0 ? 1 : (n.depth === 1 ? 2 : 3),
+
                     val: 10
                  })),
                  links: res.data.edges.map((e: any) => ({
@@ -106,6 +107,17 @@ export function GraphView() {
           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-green-500"></div> Depth 1 (Direct)</div>
           <div className="flex items-center gap-2"><div className="w-3 h-3 rounded-full bg-amber-500"></div> Depth 2+</div>
         </div>
+        {!searchId && data.nodes.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="glass-panel p-6 text-center max-w-sm pointer-events-auto mt-4 px-10">
+              <div className="mb-4 flex flex-col items-center">
+                 <Search className="w-8 h-8 text-blue-500 mb-2" />
+                 <h4 className="text-lg font-bold">Explore the Network</h4>
+                 <p className="text-sm text-secondary">Enter a participant's unique ID above to visualize their referral tree and track potential fraud patterns.</p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

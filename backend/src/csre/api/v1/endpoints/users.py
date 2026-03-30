@@ -3,11 +3,20 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 
 from csre.core.security import TokenPayload, require_access_token
-from csre.modules.user.schemas import UserRegistrationRequest
+from csre.modules.user.schemas import UserRegistrationRequest, ReferralCodeLookupResponse
 from csre.modules.user.service import UserService, get_user_service
 from csre.schemas.envelope import success_response
 
 router = APIRouter(prefix="/users", tags=["users"])
+
+
+@router.get("", response_model=list[ReferralCodeLookupResponse])
+async def list_users(
+    service: UserService = Depends(get_user_service),
+):
+    """List all users with their referral codes (Admin/Dashboard use)"""
+    return await service.list_all_users()
+
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)

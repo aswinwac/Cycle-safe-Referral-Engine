@@ -42,29 +42,45 @@ class DashboardService:
         )
 
     async def get_activity_feed(self, limit: int = 50) -> ActivityFeedResponse:
-        events = await self.repository.get_activity_feed(limit)
-        return ActivityFeedResponse(
-            events=[{
-                "id": str(e.id),
-                "event_type": str(e.event_type),
-                "label": "System Event",
-                "actor": {"id": "system", "username": "System"},
-                "target": None,
-                "payload": e.payload,
-                "created_at": e.created_at.isoformat() + "Z"
-            } for e in events] if events else []
-        )
+        rows = await self.repository.get_activity_feed(limit)
+        events = []
+        for row in rows:
+            # Determine label based on type
+            label = "System Activity"
+            if row.event_type == "USER_REGISTERED":
+                label = "New User Joined" if not row.target_id else "Referral Registration"
+            elif row.event_type == "FRAUD_FLAGGED":
+                label = "Fraud Risk Detected"
+            elif row.event_type == "REWARD_ISSUED":
+                label = "Incentive Distributed"
+
+            events.append({
+                "id": str(row.id),
+                "event_type": str(row.event_type),
+                "label": label,
+                "actor": {"id": str(row.actor_id), "username": row.actor_username or "Deleted User"} if row.actor_id else {"id": "system", "username": "System"},
+                "target": {"id": str(row.target_id), "username": row.target_username or "Deleted User"} if row.target_id else None,
+                "payload": row.payload,
+                "created_at": row.created_at.strftime('%Y-%m-%dT%H:%M:%SZ')
+            })
+
+        
+        return ActivityFeedResponse(events=events)
+
 
     async def get_graph(self, user_id: str, depth: int) -> GraphResponse:
-        return GraphResponse(
-            root_user_id=user_id,
-            depth=depth,
-            nodes=[
-                {"id": user_id, "username": "Root", "referral_count": 0, "is_root": True, "depth_from_root": 0}
-            ],
-            edges=[],
-            stats={"total_nodes": 1, "total_edges": 0, "max_depth_found": 0}
-        )
+        # Resolve user_id: it could be a raw UUID or a referral code
+        actual_user_id = str(user_id)
+        # Simple check: if it has a hyphen and matches referral code pattern
+        if "-" in user_id and len(user_id) <= 20:
+             user = await self.repository.resolve_referral_code(user_id)
+             if user:
+                 actual_user_id = str(user.id)
+
+        return await self.repository.get_graph_data(actual_user_id, depth)
+
+
+
 
 async def get_dashboard_service(
     request: Request,

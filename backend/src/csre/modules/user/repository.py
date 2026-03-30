@@ -42,6 +42,19 @@ class UserRepository:
     async def get_user_by_id(self, user_id: str) -> UserRecord | None:
         return await self._scalar(select(UserRecord).where(UserRecord.id == user_id))
 
+    async def get_all_users(self) -> list[UserRecord]:
+        """Fetch all users from Postgres (ordered by most recent)"""
+        print("UserRepository: Fetching all users...")
+        stmt = select(UserRecord).order_by(UserRecord.created_at.desc())
+        result = await self.session.execute(stmt)
+        print("UserRepository: Statement executed.")
+        users = list(result.scalars().all())
+        print(f"UserRepository: Found {len(users)} users.")
+        return users
+
+
+
+
     async def get_user_by_referral_code(self, referral_code: str) -> UserRecord | None:
         return await self._scalar(
             select(UserRecord).where(UserRecord.referral_code == referral_code)
@@ -258,11 +271,12 @@ class UserRepository:
         async with self.neo4j_driver.session(database=self.settings.neo4j_database) as session:
             result = await session.run(
                 """
-                MATCH (child:User {id: $child_id})
                 MATCH (parent:User {id: $parent_id})
-                MERGE (child)-[r:REFERRED {referral_id: $referral_id}]->(parent)
+                MATCH (child:User {id: $child_id})
+                MERGE (parent)-[r:REFERRED {referral_id: $referral_id}]->(child)
                 SET r.created_at = datetime($created_at),
                     r.depth = $depth
+
                 """,
                 child_id=referral.referred_id,
                 parent_id=referral.referrer_id,

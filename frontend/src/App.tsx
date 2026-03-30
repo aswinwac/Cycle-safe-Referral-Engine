@@ -4,6 +4,7 @@ import { MetricsPanel } from './components/MetricsPanel';
 import { GraphView } from './components/GraphView';
 import { FraudPanel } from './components/FraudPanel';
 import { ActivityFeed } from './components/ActivityFeed';
+import { UserList } from './components/UserList';
 
 function App() {
   const [activeTab, setActiveTab] = useState('metrics');
@@ -19,11 +20,7 @@ function App() {
       case 'activity':
         return <ActivityFeed />;
       case 'users':
-        return (
-          <div className="flex items-center justify-center h-full animate-slide-in text-muted">
-            User listing interface pending implementation
-          </div>
-        );
+        return <UserList />;
       default:
         return <MetricsPanel />;
     }

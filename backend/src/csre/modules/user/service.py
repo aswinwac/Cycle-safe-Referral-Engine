@@ -47,51 +47,52 @@ class UserService:
         ip_address = str(payload.ip_address) if payload.ip_address else None
         device_hash = payload.device_hash
 
-        await self._ensure_unique_identity(normalized_email, normalized_username)
-
-        referrer = None
-        if payload.referral_code:
-            referrer = await self.repository.resolve_referral_code(payload.referral_code)
-            if referrer is None:
-                raise CSREException(
-                    ErrorCode.INVALID_CODE,
-                    "Referral code not found or expired",
-                    status.HTTP_400_BAD_REQUEST,
-                )
-            if referrer.status == "DEACTIVATED":
-                raise CSREException(
-                    ErrorCode.INVALID_CODE,
-                    "Referral code not found or expired",
-                    status.HTTP_400_BAD_REQUEST,
-                )
-            if referrer.email == normalized_email or referrer.username == normalized_username:
-                raise CSREException(
-                    ErrorCode.SELF_REFERRAL,
-                    "You cannot use your own referral code",
-                    status.HTTP_400_BAD_REQUEST,
-                )
-
-        duplicate_ip = await self.repository.has_duplicate_ip(ip_address)
-        duplicate_device = await self.repository.has_duplicate_device(device_hash)
-        referral_code = await self._generate_unique_referral_code(normalized_username)
-
-        user = UserRecord(
-            email=normalized_email,
-            email_hash=hash_email(normalized_email),
-            username=normalized_username,
-            password_hash=hash_password(payload.password),
-            referral_code=referral_code,
-            referrer_id=referrer.id if referrer else None,
-            status="ACTIVE",
-            ip_address=ip_address,
-            device_hash=device_hash,
-        )
-
+        user = None
         referral = None
         graph_user_created = False
 
         try:
             async with self.repository.session.begin():
+                await self._ensure_unique_identity(normalized_email, normalized_username)
+                
+                referrer = None
+                if payload.referral_code:
+                    referrer = await self.repository.resolve_referral_code(payload.referral_code)
+                    if referrer is None:
+                        raise CSREException(
+                            ErrorCode.INVALID_CODE,
+                            "Referral code not found or expired",
+                            status.HTTP_400_BAD_REQUEST,
+                        )
+                    if referrer.status == "DEACTIVATED":
+                        raise CSREException(
+                            ErrorCode.INVALID_CODE,
+                            "Referral code not found or expired",
+                            status.HTTP_400_BAD_REQUEST,
+                        )
+                    if referrer.email == normalized_email or referrer.username == normalized_username:
+                        raise CSREException(
+                            ErrorCode.SELF_REFERRAL,
+                            "You cannot use your own referral code",
+                            status.HTTP_400_BAD_REQUEST,
+                        )
+
+                duplicate_ip = await self.repository.has_duplicate_ip(ip_address)
+                duplicate_device = await self.repository.has_duplicate_device(device_hash)
+                referral_code = await self._generate_unique_referral_code(normalized_username)
+
+                user = UserRecord(
+                    email=normalized_email,
+                    email_hash=hash_email(normalized_email),
+                    username=normalized_username,
+                    password_hash=hash_password(payload.password),
+                    referral_code=referral_code,
+                    referrer_id=referrer.id if referrer else None,
+                    status="ACTIVE",
+                    ip_address=ip_address,
+                    device_hash=device_hash,
+                )
+
                 user = await self.repository.create_user(user)
                 if referrer is not None:
                     referral = await self.repository.create_referral(
@@ -131,7 +132,7 @@ class UserService:
                     else:
                         raise CSREException(
                             ErrorCode.GRAPH_WRITE_FAILED,
-                            "User graph node could not be created",
+                            f"User graph node could not be created: {str(exc)}",
                             status.HTTP_500_INTERNAL_SERVER_ERROR,
                         ) from exc
 
@@ -152,25 +153,29 @@ class UserService:
                     event_type="USER_REGISTERED",
                     actor_id=user.id,
                     target_id=user.id,
-                    payload={"referrer_id": referrer.id if referrer else None},
+                    payload={
+                        "referrer_id": referrer.id if referrer else None,
+                        "referral_code": user.referral_code,
+                    },
                 )
         except IntegrityError as exc:
-            if graph_user_created:
+            if graph_user_created and user:
                 await self.repository.delete_graph_user(user.id)
             raise self._map_integrity_error(exc) from exc
         except CSREException:
-            if graph_user_created:
+            if graph_user_created and user:
                 await self.repository.delete_graph_user(user.id)
             raise
         except Exception as exc:
-            if graph_user_created:
+            if graph_user_created and user:
                 await self.repository.delete_graph_user(user.id)
             raise CSREException(
                 ErrorCode.GRAPH_WRITE_FAILED,
-                "Registration failed while syncing the user graph",
+                f"Registration failed: {str(exc)}",
                 status.HTTP_500_INTERNAL_SERVER_ERROR,
             ) from exc
 
+        # Post-transaction operations
         await self.repository.cache_referral_code_lookup(user.referral_code, user.id)
         await self.repository.invalidate_profile_cache(user.id)
         if referrer is not None:
@@ -296,6 +301,19 @@ class UserService:
             total_nodes=len(rows),
             depth_queried=depth,
         )
+
+    async def list_all_users(self) -> list[ReferralCodeLookupResponse]:
+        """List all users for administrative purposes"""
+        users = await self.repository.get_all_users()
+        return [
+            ReferralCodeLookupResponse(
+                user_id=u.id,
+                username=u.username,
+                referral_code=u.referral_code
+            )
+            for u in users
+        ]
+
 
     async def _ensure_unique_identity(self, email: str, username: str) -> None:
         if await self.repository.get_user_by_email(email):
